@@ -39,23 +39,26 @@ function getGTNHdownloadPath(){
 
   # Select compatible server files for the Java version.
   if (( current_java_version == 8 )); then
-    gtnh_download_path=$(jq -e -r '.server.java8Url // empty' <<< "$release_object")
+    gtnh_download_path=$(jq -r '.server.java8Url // empty' <<< "$release_object")
     log "Use GTNH Server Java 8 release."
   elif (( current_java_version >= 17 )); then
     local max_java_version=""
-    max_java_version=$(jq -e -r '.maxJavaVersion // empty' <<< "$release_object")
-    if [[ -z "$max_java_version" ]] || (( current_java_version > max_java_version )); then
+    if ! max_java_version=$(jq -e -r '.maxJavaVersion | select(type == "number" and floor == .)' <<< "$release_object"); then
+      logError "GTNH release metadata has an invalid maxJavaVersion."
+      exit 1
+    fi
+    if (( current_java_version > max_java_version )); then
       logError "Container Java version $current_java_version is not supported by GTNH. Try an older release."
       exit 1
     fi
-    gtnh_download_path=$(jq -e -r '.server.java17_2XUrl // empty' <<< "$release_object")
+    gtnh_download_path=$(jq -r '.server.java17_2XUrl // empty' <<< "$release_object")
     log "Use GTNH Server Java 17+ release."
   else
     logError "Container Java version $current_java_version is not supported by GTNH."
     exit 1
   fi
 
-  if [[ -z "$gtnh_download_path" || "$gtnh_download_path" != https://* || "$gtnh_download_path" == *[[:space:]]* ]]; then
+  if [[ -z "$gtnh_download_path" || ! "$gtnh_download_path" =~ ^https://[^[:space:]/?#]+([/?#].*)?$ ]]; then
     logError "Server files not found or URL is invalid for GTNH_PACK_VERSION=$GTNH_PACK_VERSION."
     exit 1
   fi
